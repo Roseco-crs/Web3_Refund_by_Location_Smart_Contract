@@ -26,6 +26,7 @@
 
 .Custom-button button {
   front-size: 24px;
+  margin-button: 24px;  
 }
 
 input {
