@@ -4,19 +4,14 @@ pragma solidity ^0.8.9;
 contract RefundByGPSnTime {
 
     // creator of the smart contract
-    address public creator;             // employer or owner of the smart contract
-    address public driver;
+    address payable public creator;             // employer or owner of the smart contract
+    address payable public driver;
     address public device;
+    uint total_fund_locked = 0.00005 ether;
+    uint reward = 0.00002 ether;
 
-    // set of state
-    enum StateType {Created, InTransit, Completed, OutOfCompliance}
-    
-
-    // enum, here, represent compliance state of the device.
-    enum DeviceState{
-        InCompliance,
-        OutOfCompliance
-    }
+    // set of state of the divice
+    enum DeviceState {Created, InTransit, Completed, OutOfCompliance}
 
 
     // Proprities of Device. Struct stores information about a Device
@@ -24,24 +19,26 @@ contract RefundByGPSnTime {
         uint latitude;                  //current latitude of the device
         uint longitude;                 //current longitude of the device
         uint distance;                  //Remaing distance to the target destination
-        //uint complianceRange;         //allowed compliance range for device
         uint timestamp;                 //Timestamp of the last update from the device 
         DeviceState state;              //Current compliance state of the device
     }
 
     // Proprities of Driver. Struct stores driver information
     struct Driver {
-        address driver_account;
-        string driver_name;
+        address driver;
+        string name;
+        uint rating;
     }
+
+    //driverr = Driver (driver, name, rating);
 
     // I should define the relationship between the driver and the device using a mapp
 
     // adding Devices into a mapping
-    mapping(address => Device) public devices; 
+    mapping(address => Device) public devices;     //************************* */
 
     // Track which address send ether and how much ether they send
-    mapping(address => uint) balances;
+    mapping(address => uint) balances;             //************************ */
 
     // Event emitted when the compliance state of a device is updated
     event DeviceComplianceUpdated(address indexed device, DeviceState newState);
@@ -52,71 +49,80 @@ contract RefundByGPSnTime {
         _;
     }
 
+    modifier onlyDriver() {
+        require(msg.sender == driver, "Not authorized");
+        _;
+    }
+
     //constructor to set the creator as the deployer of the contract 
-    constructor(address _creator, address _device, address _driver) public {
-        creator = msg.sender;
-        device = _device;
-        driver = _driver;
+    constructor()  {
+        creator = payable(msg.sender);
+        //device = _device;
+        //driver = _driver;
     }
 
     // Function for the creator to add a new device with specific parameters
-    function addDevice(address _device, uint _latitude, uint _longitude, uint _complianceRange) external onlyCreator {
-        require(devices[_device].lastUpdateTimestamp ==0, "Device already added");
+    function addDevice(address _device, uint _latitude, uint _longitude, uint _distance) external onlyCreator {
+        require(devices[_device].timestamp ==0, "Device already added");
 
         devices[_device] = Device({
             latitude: _latitude,
             longitude: _longitude,
-            complianceRange: _complianceRange,
-            lastUpdateTimestamp: block.timestamp,
-            state: DeviceState.InCompliance
+            distance: _distance,
+            timestamp : block.timestamp,
+            state: DeviceState.InTransit
         });
     }
 
     // Function for a device to update its location
-    function updateDeviceLocation(address _device, uint _latitude, uint _longitude) external {
-        require(devices[_device].lastUpdateTimestamp != 0, "Device not registered");
+    function updateDeviceLocation(address _device, uint _latitude, uint _longitude, uint _distance) external {
+        require(devices[_device].timestamp != 0, "Device not registered");
 
-        Device storage device = devices[_device];
-
-        // Check if the device is within the specified compliance range
-        //require(isWithinRange(_latitude, _longitude, device.latitude, device.longitude, device.complianceRange), "Out of compliance");
+        Device storage devicee = devices[_device];
         
         // Update the device's location and timestamp
-        device.latitude = _latitude;
-        device.longitude = _longitude;
-        device.lastUpdateTimestamp = block.timestamp;
+        devicee.latitude = _latitude;
+        devicee.longitude = _longitude;
+        devicee.distance = _distance;
+        devicee.timestamp = block.timestamp;
 
-        // If the device was previously out of compliance, update its state and emit an event
-        if (device.state == DeviceState.OutOfCompliance) {
-            device.state = DeviceState.InCompliance;
-            emit DeviceComplianceUpdated(_device, DeviceState.InCompliance);
+        // if device has completed state
+        if (devicee.state == DeviceState.Completed) {
+            // driverr.rating = 1;
+            // transfer salary from smart contract to Driver
+
+            _transferEtherToDriver(driver);
+
         }
+        else if (devicee.state == DeviceState.OutOfCompliance) {
+            // driverr.rating = 0.5 ;
+            // Return the 5000 Wei to smart contract owner
+            transferEtherToCreator(reward);
+
+        }
+        
+
     }
 
-
-    /*
-    // Internal function to check if two sets of GPS coordinates are within a specified range
-    function isWithinRange(
-        uint _latDevice,
-        uint _lonDevice,
-        uint _latTarget,
-        uint _lonTarget,
-        uint _range
-    ) internal pure returns (bool) {
-        // Implement the GPS range check logic, similar to the previous example
-        // ...
-        return true;   // Placeholder, replace with actual logic
+    // transfer from smart contract to recipient
+    function _transferEtherToDriver(address payable _recipient) internal{
+        _recipient.transfer(total_fund_locked);           
     }
-    */
 
+    // send value from smart contract to the owner/creator
+    function transferEtherToCreator(uint _reward) public onlyCreator {
+        require((address(this).balance) >= _reward, "Insufficient balance in the contract");
+        creator.transfer(_reward);           
+    }
 
-    function reward() external payable {
-        if (msg.value < 1000) {
+    function returnRewardToCreator() external payable {
+        if (msg.value < total_fund_locked) {
             revert();  // cancel the transaction
         }
-        blances[msg.sender] + = msg.value;
+        balances[msg.sender] += msg.value;
     }
 
+    // view balance
     function balanceOf() external view returns (uint) {
         return address(this).balance;
     }
