@@ -29,14 +29,34 @@ function App() {
     <div className="App">
         <div className='App-header'>
           {/* BUTTONS - Fetch and Set */}
-          <div className='Custom-button'>
-            <button> Fetch Lock </button>
-            <button> Set Lock </button>
-          </div>
-          {/* INPUT TEXT - String */}
+          
+          {/* INPUT TEXT - String */} 
+
+          <div className='custom-input'>
           <input
-              placeholder='Set Lock Message' 
+              placeholder='Longitude' 
           />
+
+          <input
+              placeholder='Latitude' 
+          />
+
+          <input
+              placeholder='distance' 
+          /> 
+
+          <input
+              placeholder='Timestamp' 
+          />
+
+          </div> 
+
+          <div className='Custom-button'>
+            <button> Add Device </button>
+            <button> Update Device Position </button>
+          </div>
+          
+          
 
       </div>
       

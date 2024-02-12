@@ -4,9 +4,9 @@ pragma solidity ^0.8.9;
 contract RefundByGPSnTime {
 
     // creator of the smart contract
-    address payable public creator;             // employer or owner of the smart contract
-    address payable public driver;
-    address public device;
+    address public creatorAccount = msg.sender;             // employer or owner of the smart contract
+    address public driverAccount;
+    address public deviceAccount;
     uint total_fund_locked = 0.00005 ether;
     uint reward = 0.00002 ether;
 
@@ -15,9 +15,9 @@ contract RefundByGPSnTime {
 
 
     // Proprities of Device. Struct stores information about a Device
-    struct Device {
-        uint latitude;                  //current latitude of the device
-        uint longitude;                 //current longitude of the device
+    struct DeviceCheckPoint {
+        int latitude;                  //current latitude of the device
+        int longitude;                 //current longitude of the device
         uint distance;                  //Remaing distance to the target destination
         uint timestamp;                 //Timestamp of the last update from the device 
         DeviceState state;              //Current compliance state of the device
@@ -35,63 +35,75 @@ contract RefundByGPSnTime {
     // I should define the relationship between the driver and the device using a mapp
 
     // adding Devices into a mapping
-    mapping(address => Device) public devices;     //************************* */
+    mapping(address => DeviceCheckPoint) public deviceReadings;     //************************* */
 
     // Track which address send ether and how much ether they send
     mapping(address => uint) balances;             //************************ */
 
     // Event emitted when the compliance state of a device is updated
-    event DeviceComplianceUpdated(address indexed device, DeviceState newState);
+    event DeviceComplianceUpdated(address indexed deviceAccount, DeviceState newState);
 
     // Modifier to ensure that only the createor can execute certain functions
     modifier onlyCreator() {
-        require(msg.sender == creator, "Not authorized");
+        require(msg.sender == creatorAccount, "Not authorized");
         _;
     }
 
     modifier onlyDriver() {
-        require(msg.sender == driver, "Not authorized");
+        require(msg.sender == driverAccount, "Not authorized");
         _;
     }
 
-    //constructor to set the creator as the deployer of the contract 
-    constructor()  {
-        creator = payable(msg.sender);
-        //device = _device;
-        //driver = _driver;
-    }
+    /*//constructor to set the creator as the deployer of the contract 
+    constructor(address _creatorAccount, address _driverAccount, address _deviceAccount) {
+        creatorAccount = _creatorAccount;
+        driverAccount = _driverAccount;
+        deviceAccount = _deviceAccount;
+    }*/
+
 
     // Function for the creator to add a new device with specific parameters
-    function addDevice(address _device, uint _latitude, uint _longitude, uint _distance) external onlyCreator {
-        require(devices[_device].timestamp ==0, "Device already added");
+    function addDevice(address _deviceAccount, int _latitude, int _longitude, uint _distance) external onlyCreator {
+        require(deviceReadings[_deviceAccount].timestamp == 0, "Device already added");
 
-        devices[_device] = Device({
+        deviceReadings[_deviceAccount] = DeviceCheckPoint({
             latitude: _latitude,
             longitude: _longitude,
             distance: _distance,
             timestamp : block.timestamp,
-            state: DeviceState.InTransit
+            state: DeviceState.Completed
         });
     }
 
     // Function for a device to update its location
-    function updateDeviceLocation(address _device, uint _latitude, uint _longitude, uint _distance) external {
-        require(devices[_device].timestamp != 0, "Device not registered");
+    function updateDeviceLocation(int _latitude, int _longitude, uint _distance, uint _timestamp) external {
+        require(msg.sender == deviceAccount, "Not Authorized");
+        deviceReadings[msg.sender] = DeviceCheckPoint(
+            {latitude:_latitude, 
+            longitude:_longitude, 
+            distance: _distance, 
+            timestamp: _timestamp,
+            state: DeviceState.Completed}
+            );
 
-        Device storage devicee = devices[_device];
+        DeviceCheckPoint storage devicee = deviceReadings[deviceAccount];
+        /*
+        require(deviceReadings[_deviceAccount].timestamp != 0, "Device not registered");
+
+        DeviceCheckPoint storage devicee = deviceReadings[_deviceAccount];
         
         // Update the device's location and timestamp
         devicee.latitude = _latitude;
         devicee.longitude = _longitude;
         devicee.distance = _distance;
-        devicee.timestamp = block.timestamp;
+        devicee.timestamp = block.timestamp;  */
 
         // if device has completed state
         if (devicee.state == DeviceState.Completed) {
             // driverr.rating = 1;
             // transfer salary from smart contract to Driver
 
-            _transferEtherToDriver(driver);
+            _transferEtherToDriver(payable(driverAccount));
 
         }
         else if (devicee.state == DeviceState.OutOfCompliance) {
@@ -99,8 +111,7 @@ contract RefundByGPSnTime {
             // Return the 5000 Wei to smart contract owner
             transferEtherToCreator(reward);
 
-        }
-        
+        }        
 
     }
 
@@ -111,23 +122,9 @@ contract RefundByGPSnTime {
 
     // send value from smart contract to the owner/creator
     function transferEtherToCreator(uint _reward) public onlyCreator {
-        require((address(this).balance) >= _reward, "Insufficient balance in the contract");
-        creator.transfer(_reward);           
+        require((address(this).balance) >= _reward, "Insufficient balance in the contract");      
+        payable(creatorAccount).transfer(_reward);           
     }
-
-    function returnRewardToCreator() external payable {
-        if (msg.value < total_fund_locked) {
-            revert();  // cancel the transaction
-        }
-        balances[msg.sender] += msg.value;
-    }
-
-    // view balance
-    function balanceOf() external view returns (uint) {
-        return address(this).balance;
-    }
-
-
 
 }
 
